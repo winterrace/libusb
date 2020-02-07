@@ -34,16 +34,15 @@
  * with a fake pipe. The read/write functions are only meant to be used in that
  * context.
  */
-#include <config.h>
-
-#include <assert.h>
-#include <errno.h>
-#include <intrin.h>
-#include <malloc.h>
-#include <stdlib.h>
 
 #include "libusbi.h"
 #include "windows_common.h"
+
+#include <errno.h>
+#include <intrin.h>
+#include <malloc.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
 // public fd data
 const struct winfd INVALID_WINFD = { -1, NULL };
@@ -135,14 +134,16 @@ static int install_fd(struct file_descriptor *fd)
 
 	for (n = 0; n < fd_table_size; n += BITMAP_BITS_PER_WORD) {
 		unsigned int idx = n / BITMAP_BITS_PER_WORD;
-		unsigned long mask, pos;
+		ULONG mask, pos = 0U;
+		unsigned char nonzero;
 
 		mask = ~fd_table_bitmap[idx];
-		if (mask == 0UL)
+		if (mask == 0U)
 			continue;
 
-		assert(_BitScanForward(&pos, mask));
-		fd_table_bitmap[idx] |= 1UL << pos;
+		nonzero = _BitScanForward(&pos, mask);
+		assert(nonzero);
+		fd_table_bitmap[idx] |= 1U << pos;
 		n += pos;
 		break;
 	}
@@ -159,7 +160,7 @@ static void remove_fd(unsigned int pos)
 {
 	assert(fd_table[pos] != NULL);
 	fd_table[pos] = NULL;
-	fd_table_bitmap[pos / BITMAP_BITS_PER_WORD] &= ~(1UL << (pos % BITMAP_BITS_PER_WORD));
+	fd_table_bitmap[pos / BITMAP_BITS_PER_WORD] &= ~(1U << (pos % BITMAP_BITS_PER_WORD));
 	fd_count--;
 	if (fd_count == 0) {
 		free(fd_table);
@@ -309,11 +310,11 @@ static DWORD poll_wait(const HANDLE *wait_handles, DWORD num_wait_handles, DWORD
 	for (n = 0; n < num_threads; n++) {
 		if (thread_data[n].thread != NULL) {
 			if (WaitForSingleObject(thread_data[n].thread, INFINITE) != WAIT_OBJECT_0)
-				usbi_err(NULL, "WaitForSingleObject() failed: %lu", GetLastError());
+				usbi_err(NULL, "WaitForSingleObject() failed: %lu", ULONG_CAST(GetLastError()));
 			CloseHandle(thread_data[n].thread);
 		}
 		if (thread_data[n].error) {
-			usbi_err(NULL, "wait thread %d had error %lu\n", n, thread_data[n].error);
+			usbi_err(NULL, "wait thread %d had error %lu\n", n, ULONG_CAST(thread_data[n].error));
 			error = thread_data[n].error;
 			status = WAIT_FAILED;
 		}
@@ -409,7 +410,7 @@ int usbi_poll(struct pollfd *fds, usbi_nfds_t nfds, int timeout)
 			assert(timeout > 0);
 			timeout = 0;
 		} else if (ret == WAIT_FAILED) {
-			usbi_err(NULL, "WaitForMultipleObjects failed: %lu", GetLastError());
+			usbi_err(NULL, "WaitForMultipleObjects failed: %lu", ULONG_CAST(GetLastError()));
 			errno = EIO;
 			nready = -1;
 		}
