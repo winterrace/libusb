@@ -143,6 +143,7 @@ linux)
 		THREAD_CFLAGS="-pthread"
 		LIBS="${LIBS} -pthread"
 	fi
+	AC_CHECK_FUNCS([pthread_setname_np])
 	;;
 netbsd)
 	AC_DEFINE([OS_NETBSD], [1], [NetBSD backend])
@@ -323,16 +324,30 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
 	nopointersign_cflags="-Wno-pointer-sign", nopointersign_cflags="")
 CFLAGS="${saved_CFLAGS}"
 
-dnl check for -std=gnu99 compiler support
+dnl check for -std=gnu11 compiler support
 saved_CFLAGS="${CFLAGS}"
-CFLAGS="-std=gnu99"
-AC_MSG_CHECKING([whether CC supports -std=gnu99])
+CFLAGS="-std=gnu11"
+AC_MSG_CHECKING([whether CC supports -std=gnu11])
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
 	[AC_MSG_RESULT([yes])
-	 AM_CFLAGS="${AM_CFLAGS} -std=gnu99"],
-	[AC_MSG_RESULT([no])]
-)
+	 AM_CFLAGS="${AM_CFLAGS} -std=gnu11"],
+	[AC_MSG_RESULT([no])])
 CFLAGS="${saved_CFLAGS}"
+
+dnl check for _Thread_local compiler support
+if test "x$backend" != xwindows; then
+	saved_CFLAGS="${CFLAGS}"
+	saved_LDFLAGS="${LDFLAGS}"
+	CFLAGS="${CFLAGS} -fPIC"
+	LDFLAGS="${LDFLAGS} -shared"
+	AC_MSG_CHECKING([whether CC supports _Thread_local])
+	AC_LINK_IFELSE([AC_LANG_PROGRAM([], [static _Thread_local int v])],
+		[AC_MSG_RESULT([yes])
+		 AC_DEFINE([HAVE_CC_THREAD_LOCAL], [1], [Define to 1 if the compiler supports _Thread_local.])],
+		[AC_MSG_RESULT([no])])
+	CFLAGS="${saved_CFLAGS}"
+	LDFLAGS="${saved_LDFLAGS}"
+fi
 
 AM_CFLAGS="${AM_CFLAGS} -Wall -Wundef -Wunused -Wstrict-prototypes -Werror-implicit-function-declaration ${nopointersign_cflags} -Wshadow ${THREAD_CFLAGS} ${VISIBILITY_CFLAGS}"
 
